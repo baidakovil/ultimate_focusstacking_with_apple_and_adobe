@@ -18,3 +18,4 @@ __pycache__/
 user_settings.txt
 
 .DS_Store
+test_output/

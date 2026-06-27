@@ -1,0 +1,28 @@
+[MASTER]
+ignore=test.py
+ignore-patterns=tests/test\.py
+init-hook='import sys; sys.path.append(".")'
+
+[MESSAGES CONTROL]
+disable=
+    missing-module-docstring,
+    missing-function-docstring,
+    missing-class-docstring,
+    line-too-long,
+    broad-exception-caught,
+    no-else-return,
+    too-many-branches,
+    too-many-statements,
+    too-many-return-statements,
+    invalid-name,
+    wrong-import-position,
+    import-outside-toplevel,
+    f-string-without-interpolation,
+    unused-import,
+    unused-variable,
+    redefined-outer-name,
+    pointless-string-statement,
+    consider-using-sys-exit,
+    duplicate-code,
+    subprocess-run-check,
+    unspecified-encoding
