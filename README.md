@@ -118,11 +118,24 @@ Change these if your capture interval differs or you need larger or smaller stac
 - If Photoshop fails, confirm `photoshop_app` matches the installed application name.
 - If no images are found, check the current working folder contents and fetcher permissions.
 
-## Testing
+## Testing and linting
+
+Run the full Python test suite with pytest:
 
 ```bash
-python tests/test_no_groups.py
-python tests/test_integration.py
+pytest tests
+```
+
+Run static checks with flake8:
+
+```bash
+python -m flake8 src tests main.py --count --select=E9,F63,F7,F82 --show-source --statistics
+```
+
+Run type checking with mypy:
+
+```bash
+python -m mypy src
 ```
 
 ## Minimal example
