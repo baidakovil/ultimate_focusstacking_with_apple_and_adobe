@@ -74,9 +74,6 @@ autoAlign();
 
 autoBlendLayers();
 
-// Autocrop to remove transparent areas from alignment
-autoCrop();
-
 var layerName = activeDocument.activeLayer.name.replace(/\....$/i,'');
 
 var saveFile = new File(outFolder+ '/' + layerName + '_fs.jpg');
@@ -178,67 +175,3 @@ desc.putBoolean( charIDToTypeID('ClrC'), true );
 executeAction( stringIDToTypeID('mergeAlignedLayers'), desc, DialogModes.NO );
 
 };
-
-function autoCrop() {
-    try {
-        // Method 1: Trim transparent pixels (most common after alignment)
-        var desc = new ActionDescriptor();
-        desc.putEnumerated(charIDToTypeID('Base'), charIDToTypeID('Trns'), charIDToTypeID('Trns'));
-        desc.putBoolean(charIDToTypeID('Top '), true);
-        desc.putBoolean(charIDToTypeID('Btom'), true);
-        desc.putBoolean(charIDToTypeID('Left'), true);
-        desc.putBoolean(charIDToTypeID('Rght'), true);
-        executeAction(charIDToTypeID('Trim'), desc, DialogModes.NO);
-    } catch (e) {
-        try {
-            // Method 2: Fallback to crop to visible bounds if trim fails
-            activeDocument.crop(activeDocument.bounds);
-        } catch (e2) {
-            // If both methods fail, continue without cropping
-        }
-    }
-}
-
-// Alternative autocrop method using content bounds
-function autoCropToBounds() {
-    try {
-        // Get the bounds of all visible content
-        var bounds = activeDocument.bounds;
-        var left = bounds[0].value;
-        var top = bounds[1].value;
-        var right = bounds[2].value;
-        var bottom = bounds[3].value;
-        
-        // Create crop area
-        var cropArea = [left, top, right, bottom];
-        activeDocument.crop(cropArea);
-    } catch (e) {
-        // Continue if cropping fails
-    }
-}
-
-// Smart autocrop that tries multiple strategies
-function smartAutoCrop() {
-    try {
-        // First try trimming transparent pixels
-        autoCrop();
-    } catch (e) {
-        try {
-            // If that fails, try cropping to content bounds
-            autoCropToBounds();
-        } catch (e2) {
-            try {
-                // Last resort: trim based on top-left pixel color
-                var desc = new ActionDescriptor();
-                desc.putEnumerated(charIDToTypeID('Base'), charIDToTypeID('Clr '), charIDToTypeID('TpLf'));
-                desc.putBoolean(charIDToTypeID('Top '), true);
-                desc.putBoolean(charIDToTypeID('Btom'), true);
-                desc.putBoolean(charIDToTypeID('Left'), true);
-                desc.putBoolean(charIDToTypeID('Rght'), true);
-                executeAction(charIDToTypeID('Trim'), desc, DialogModes.NO);
-            } catch (e3) {
-                // If all methods fail, continue without cropping
-            }
-        }
-    }
-}
