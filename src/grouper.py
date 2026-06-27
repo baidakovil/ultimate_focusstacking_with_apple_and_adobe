@@ -106,8 +106,8 @@ def read_jpg(jpg_folder: str) -> Tuple[List[str], List[datetime]]:
 
     # Sort by timestamp to maintain name-date synchronization
     photo_data.sort(key=lambda x: x[1])
-    names, dates = zip(*photo_data)
-    names, dates = list(names), list(dates)
+    names = [name for name, _ in photo_data]
+    dates = [timestamp for _, timestamp in photo_data]
 
     print(
         f'Got {len(dates)} valid timestamps in image files\nFROM: {dates[0]} \nTO  : {dates[-1]}\n'
