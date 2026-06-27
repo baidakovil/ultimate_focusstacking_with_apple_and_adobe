@@ -1,177 +1,146 @@
 app.bringToFront();
 
-// Check if folder path is provided as argument
-if (arguments.length > 0) {
-    var folderPath = arguments[0];
-    var result = loopFolders(folderPath);
-    "Focus stacking completed: " + result; // Return formatted result
-} else {
-    var result = loopFolders();
-    "Focus stacking completed: " + result; // Return formatted result
+var startupArguments = (typeof arguments !== 'undefined') ? arguments : [];
+
+function main(args) {
+    var folderPath = args && args.length > 0 ? args[0] : null;
+    var result = runFocusStacking(folderPath);
+    return "Focus stacking completed: " + result;
 }
 
-function loopFolders(folderPath){
-    
-var mainFolder;
-var processedFolders = 0;
-
-if (folderPath) {
-    mainFolder = new Folder(folderPath);
-    if (!mainFolder.exists) {
-        alert("Folder does not exist: " + folderPath);
-        return "Error: Folder does not exist: " + folderPath;
+function runFocusStacking(folderPath) {
+    var mainFolder = resolveInputFolder(folderPath);
+    if (!mainFolder) {
+        return "Error: No folder selected";
     }
-} else {
-    mainFolder = Folder.selectDialog("Please select the folder with folerds to process");    
-    if(mainFolder == null ) return "Error: No folder selected";
+
+    var folders = getSubfolders(mainFolder);
+    var processedFolders = 0;
+
+    for (var i = 0; i < folders.length; i++) {
+        var currentFolder = folders[i];
+        if (currentFolder instanceof Folder) {
+            processFolder(currentFolder, mainFolder);
+            processedFolders++;
+        }
+    }
+
+    return "Success: Processed " + processedFolders + " folder(s) for focus stacking";
 }
 
-var folderList = mainFolder.getFiles();
-
-var folderCount = folderList.length
-
-for (var i = 0; i<folderCount; i++){
-    var currentItem = folderList.shift();
-    
-    // Check if the item is actually a folder, not a file
-    if (currentItem instanceof Folder) {
-        main(currentItem, mainFolder);
-        processedFolders++;
-    }
-};
-
-return "Success: Processed " + processedFolders + " folder(s) for focus stacking";
-        
-};
-	
-function main(selectedFolder, outFolder){
-
-//var selectedFolder = Folder.selectDialog("Please select the folder to process");    
-
-if(selectedFolder == null ) return;
-
-//var outFolder = Folder(selectedFolder);
-
-// if(!outFolder.exists) outFolder.create();
-
-var threeFiles = new Array();
-
-var PictureFiles = selectedFolder.getFiles(/\.(jpg|jpe|jpeg|dng|bmp|tif|tiff|psd|crw|cr2|exr|pcx|nef|dcr|dc2|erf|raf|orf|tga|mos|pef|png)$/i);
-
-var filescount = PictureFiles.length
-
-var filescountminusone = filescount - 1
-
-while(PictureFiles.length>filescountminusone){
-
-for(var a = 0;a<filescount;a++){threeFiles.push(PictureFiles.shift());}
-
-stackFiles(threeFiles);
-
-selectAllLayers();
-
-autoAlign();
-
-autoBlendLayers();
-
-var layerName = activeDocument.activeLayer.name.replace(/\....$/i,'');
-
-var saveFile = new File(outFolder+ '/' + layerName + '_fs.jpg');
-
-SaveJPG(saveFile);
-
-app.activeDocument.close(SaveOptions.DONOTSAVECHANGES);
-
-threeFiles=[];
-
+function resolveInputFolder(folderPath) {
+    if (folderPath) {
+        var folder = new Folder(folderPath);
+        if (!folder.exists) {
+            alert("Folder does not exist: " + folderPath);
+            return null;
+        }
+        return folder;
     }
 
-};
+    var selectedFolder = Folder.selectDialog("Please select the folder with folders to process");
+    return selectedFolder;
+}
 
-function autoBlendLayers(){
+function getSubfolders(rootFolder) {
+    var items = rootFolder.getFiles();
+    var folders = [];
 
-var d=new ActionDescriptor();
+    for (var i = 0; i < items.length; i++) {
+        if (items[i] instanceof Folder) {
+            folders.push(items[i]);
+        }
+    }
 
-d.putEnumerated(stringIDToTypeID("apply"), stringIDToTypeID("autoBlendType"), stringIDToTypeID("maxDOF"));
+    return folders;
+}
 
-d.putBoolean(stringIDToTypeID("colorCorrection"), true);
+function processFolder(selectedFolder, outputFolder) {
+    if (!selectedFolder) {
+        return;
+    }
 
-d.putBoolean(stringIDToTypeID("autoTransparencyFill"), false);
+    var imageFiles = selectedFolder.getFiles(/\.(jpg|jpe|jpeg|dng|bmp|tif|tiff|psd|crw|cr2|exr|pcx|nef|dcr|dc2|erf|raf|orf|tga|mos|pef|png)$/i);
+    if (!imageFiles || imageFiles.length < 2) {
+        return;
+    }
 
-executeAction(stringIDToTypeID("mergeAlignedLayers"), d, DialogModes.NO);
+    var stackFiles = [];
+    for (var i = 0; i < imageFiles.length; i++) {
+        stackFiles.push(imageFiles[i]);
+    }
 
-};
+    try {
+        loadImagesIntoStack(stackFiles);
+        selectAllLayers();
+        alignLayers();
+        blendAlignedLayers();
 
-function SaveJPG(saveFile){
+        var baseName = getBaseName(activeDocument.activeLayer.name);
+        var outputFile = new File(outputFolder + '/' + baseName + '_fs.jpg');
+        saveAsJpeg(outputFile);
+        app.activeDocument.close(SaveOptions.DONOTSAVECHANGES);
+    } catch (e) {
+        if (app.activeDocument) {
+            app.activeDocument.close(SaveOptions.DONOTSAVECHANGES);
+        }
+        throw e;
+    }
+}
 
-var jpgOptions = new JPEGSaveOptions();
-jpgOptions.quality = 12;
-jpgOptions.embedColorProfile = true;
-jpgOptions.formatOptions = FormatOptions.PROGRESSIVE;
-if(jpgOptions.formatOptions == FormatOptions.PROGRESSIVE){
-jpgOptions.scans = 5};
-jpgOptions.matte = MatteType.NONE;
-
-activeDocument.saveAs(saveFile, jpgOptions, true, Extension.LOWERCASE); 
-
-};
+function loadImagesIntoStack(files) {
+    var scriptsFolder = decodeURI(app.path + '/' + localize('$$$/ScriptingSupport/InstalledScripts=Presets/Scripts'));
+    loadLayersFromScript = true;
+    $.evalFile(new File(scriptsFolder + '/Load Files into Stack.jsx'));
+    loadLayers.intoStack(files);
+}
 
 function selectAllLayers() {
+    var desc = new ActionDescriptor();
+    var ref = new ActionReference();
 
-var desc = new ActionDescriptor();
+    ref.putEnumerated(charIDToTypeID('Lyr '), charIDToTypeID('Ordn'), charIDToTypeID('Trgt'));
+    desc.putReference(charIDToTypeID('null'), ref);
 
-var ref = new ActionReference();
+    executeAction(stringIDToTypeID('selectAllLayers'), desc, DialogModes.NO);
+}
 
-ref.putEnumerated( charIDToTypeID('Lyr '), charIDToTypeID('Ordn'), charIDToTypeID('Trgt') );
+function alignLayers() {
+    var desc = new ActionDescriptor();
+    var ref = new ActionReference();
 
-desc.putReference( charIDToTypeID('null'), ref );
+    ref.putEnumerated(charIDToTypeID('Lyr '), charIDToTypeID('Ordn'), charIDToTypeID('Trgt'));
+    desc.putReference(charIDToTypeID('null'), ref);
+    desc.putEnumerated(charIDToTypeID('Usng'), charIDToTypeID('ADSt'), stringIDToTypeID('ADSContent'));
+    desc.putEnumerated(charIDToTypeID('Aply'), stringIDToTypeID('projection'), charIDToTypeID('Auto'));
+    desc.putBoolean(stringIDToTypeID('vignette'), false);
+    desc.putBoolean(stringIDToTypeID('radialDistort'), false);
 
-executeAction( stringIDToTypeID('selectAllLayers'), desc, DialogModes.NO );
+    executeAction(charIDToTypeID('Algn'), desc, DialogModes.NO);
+}
 
-};
+function blendAlignedLayers() {
+    var desc = new ActionDescriptor();
+    desc.putEnumerated(stringIDToTypeID('apply'), stringIDToTypeID('autoBlendType'), stringIDToTypeID('maxDOF'));
+    desc.putBoolean(stringIDToTypeID('colorCorrection'), true);
+    desc.putBoolean(stringIDToTypeID('autoTransparencyFill'), false);
 
-function stackFiles(sFiles){  
+    executeAction(stringIDToTypeID('mergeAlignedLayers'), desc, DialogModes.NO);
+}
 
-var loadLayersFromScript = true;  
+function saveAsJpeg(fileRef) {
+    var jpgOptions = new JPEGSaveOptions();
+    jpgOptions.quality = 12;
+    jpgOptions.embedColorProfile = true;
+    jpgOptions.formatOptions = FormatOptions.PROGRESSIVE;
+    jpgOptions.scans = 5;
+    jpgOptions.matte = MatteType.NONE;
 
-var SCRIPTS_FOLDER =  decodeURI(app.path + '/' + localize('$$$/ScriptingSupport/InstalledScripts=Presets/Scripts')); 
+    activeDocument.saveAs(fileRef, jpgOptions, true, Extension.LOWERCASE);
+}
 
-$.evalFile( new File(SCRIPTS_FOLDER +  '/Load Files into Stack.jsx'));   
+function getBaseName(name) {
+    return name.replace(/\.[^.]+$/i, '');
+}
 
-loadLayers.intoStack(sFiles);  
-
-};
-
-function autoAlign() {
-
-var desc = new ActionDescriptor();
-
-var ref = new ActionReference();
-
-ref.putEnumerated( charIDToTypeID('Lyr '), charIDToTypeID('Ordn'), charIDToTypeID('Trgt') );
-
-desc.putReference( charIDToTypeID('null'), ref );
-
-desc.putEnumerated( charIDToTypeID('Usng'), charIDToTypeID('ADSt'), stringIDToTypeID('ADSContent') );
-
-desc.putEnumerated( charIDToTypeID('Aply'), stringIDToTypeID('projection'), charIDToTypeID('Auto') );
-
-desc.putBoolean( stringIDToTypeID('vignette'), false );
-
-desc.putBoolean( stringIDToTypeID('radialDistort'), false );
-
-executeAction( charIDToTypeID('Algn'), desc, DialogModes.NO );
-
-};
-
-function autoBlend() {
-
-var desc = new ActionDescriptor();
-
-desc.putEnumerated( charIDToTypeID('Aply'), stringIDToTypeID('autoBlendType'), stringIDToTypeID('maxDOF') );
-
-desc.putBoolean( charIDToTypeID('ClrC'), true );
-
-executeAction( stringIDToTypeID('mergeAlignedLayers'), desc, DialogModes.NO );
-
-};
+main(startupArguments);
