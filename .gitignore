@@ -16,3 +16,5 @@ __pycache__/
 
 # User settings
 user_settings.txt
+
+.DS_Store
