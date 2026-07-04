@@ -5,7 +5,12 @@ import os
 import json
 import sys
 
-from .folder_manager import determine_workflow_action, create_folder_if_needed
+from .folder_manager import (
+    determine_workflow_action,
+    create_folder_if_needed,
+    find_subfolders_with_images,
+    find_root_image_files,
+)
 
 
 def load_settings(settings_file="settings.txt"):
@@ -188,6 +193,9 @@ def main():
     folder_current_storing = settings.get("folder_current_storing")
     photoshop_app = settings.get("photoshop_app")
     hours_icloud = settings.get("hours_icloud")
+    process_subfolders_with_photoshop = settings.get(
+        "process_subfolders_with_photoshop", False
+    )
 
     # Validate required settings
     if not all(
@@ -231,6 +239,7 @@ def main():
     print(f"  Stacker Script: {stacker}")
     print(f"  Photoshop: {photoshop_app}")
     print(f"  Hours to fetch: {hours_icloud}")
+    print(f"  Subfolder mode: {'enabled' if process_subfolders_with_photoshop else 'disabled'}")
     print()
 
     # Determine what action to take based on existing folders
@@ -269,74 +278,154 @@ def main():
             print("Error: Photo fetcher failed. Cannot proceed to next steps.")
             exit(1)
 
-        # Step 2: Run grouper.py to organize photos
-        print("\n" + "=" * 55)
-        print("📁 STEP 2: Running grouper.py to organize photos")
-        print("=" * 55)
+        subfolder_names = []
+        root_images = []
+        if process_subfolders_with_photoshop:
+            subfolder_names = find_subfolders_with_images(current_folder_path, folder_grouped)
+            root_images = find_root_image_files(current_folder_path)
+            if subfolder_names or root_images:
+                print("\n" + "=" * 55)
+                print("📂 SUBFOLDER MODE: Found work to process")
+                print("=" * 55)
+                if subfolder_names:
+                    print(f"  Candidate subfolders: {', '.join(subfolder_names)}")
+                if root_images:
+                    print(f"  Root-level images: {', '.join(root_images)}")
+                print("  Root files will be grouped by grouper; image-bearing subfolders will be processed by Photoshop.")
 
-        grouper_result = run_grouper(current_folder_path)
+        if process_subfolders_with_photoshop and (subfolder_names or root_images):
+            if root_images:
+                print("\n" + "=" * 55)
+                print("📁 STEP 2: Running grouper.py for root-level images")
+                print("=" * 55)
+                print(f"  Root-level images discovered: {len(root_images)}")
+                grouper_result = run_grouper(current_folder_path)
+                if grouper_result == "error":
+                    print("Error: Grouper.py failed with critical error. Cannot proceed.")
+                    exit(1)
+                elif grouper_result == "no_files":
+                    print("No root-level image files found; continuing with subfolder processing.")
+                elif grouper_result == "no_groups":
+                    print("No focus stacking groups were created from root-level files; continuing.")
+                elif grouper_result == "success":
+                    print("Root-level grouping completed successfully.")
+                else:
+                    print(f"Unexpected result from grouper: {grouper_result}")
+                    exit(1)
 
-        if grouper_result == "error":
-            print("Error: Grouper.py failed with critical error. Cannot proceed.")
-            exit(1)
-        elif grouper_result == "no_files":
-            print("No image files found. Workflow completed - nothing to process.")
-            exit(0)
-        elif grouper_result == "no_groups":
-            print("\nNo focus stacking groups were created.")
-            print(
-                "This means no photos were taken close enough in time to be considered for focus stacking."
-            )
-            print("Skipping Step 3 (Photoshop processing) - workflow completed.")
-            print("\n" + "=" * 55)
-            print("WORKFLOW COMPLETED: Photos fetched but no focus stacking needed")
-            print("=" * 55)
-            exit(0)
-        elif grouper_result == "success":
-            print(
-                "Photo grouping completed successfully! Proceeding to Photoshop step."
-            )
+            print(f"  Image-bearing subfolders discovered: {len(subfolder_names)}")
             if skip_photoshop:
                 print("Skipping Photoshop step because FOCUSSTACK_SKIP_PHOTOSHOP=1")
                 exit(0)
         else:
-            print(f"Unexpected result from grouper: {grouper_result}")
-            exit(1)
+            # Step 2: Run grouper.py to organize photos
+            print("\n" + "=" * 55)
+            print("📁 STEP 2: Running grouper.py to organize photos")
+            print("=" * 55)
+
+            grouper_result = run_grouper(current_folder_path)
+
+            if grouper_result == "error":
+                print("Error: Grouper.py failed with critical error. Cannot proceed.")
+                exit(1)
+            elif grouper_result == "no_files":
+                print("No image files found. Workflow completed - nothing to process.")
+                exit(0)
+            elif grouper_result == "no_groups":
+                print("\nNo focus stacking groups were created.")
+                print(
+                    "This means no photos were taken close enough in time to be considered for focus stacking."
+                )
+                print("Skipping Step 3 (Photoshop processing) - workflow completed.")
+                print("\n" + "=" * 55)
+                print("WORKFLOW COMPLETED: Photos fetched but no focus stacking needed")
+                print("=" * 55)
+                exit(0)
+            elif grouper_result == "success":
+                print(
+                    "Photo grouping completed successfully! Proceeding to Photoshop step."
+                )
+                if skip_photoshop:
+                    print("Skipping Photoshop step because FOCUSSTACK_SKIP_PHOTOSHOP=1")
+                    exit(0)
+            else:
+                print(f"Unexpected result from grouper: {grouper_result}")
+                exit(1)
 
     elif action == "run_grouper":
-        # Step 2: Run grouper.py to organize existing photos
-        print("\n" + "=" * 55)
-        print("📁 STEP 2: Running grouper.py to organize existing photos")
-        print("=" * 55)
+        subfolder_names = []
+        root_images = []
+        if process_subfolders_with_photoshop:
+            subfolder_names = find_subfolders_with_images(current_folder_path, folder_grouped)
+            root_images = find_root_image_files(current_folder_path)
+            if subfolder_names or root_images:
+                print("\n" + "=" * 55)
+                print("📂 SUBFOLDER MODE: Found work to process")
+                print("=" * 55)
+                if subfolder_names:
+                    print(f"  Candidate subfolders: {', '.join(subfolder_names)}")
+                if root_images:
+                    print(f"  Root-level images: {', '.join(root_images)}")
+                print("  Root files will be grouped by grouper; image-bearing subfolders will be processed by Photoshop.")
 
-        grouper_result = run_grouper(current_folder_path)
+        if process_subfolders_with_photoshop and (subfolder_names or root_images):
+            if root_images:
+                print("\n" + "=" * 55)
+                print("📁 STEP 2: Running grouper.py for root-level images")
+                print("=" * 55)
+                print(f"  Root-level images discovered: {len(root_images)}")
+                grouper_result = run_grouper(current_folder_path)
+                if grouper_result == "error":
+                    print("Error: Grouper.py failed with critical error. Cannot proceed.")
+                    exit(1)
+                elif grouper_result == "no_files":
+                    print("No root-level image files found; continuing with subfolder processing.")
+                elif grouper_result == "no_groups":
+                    print("No focus stacking groups were created from root-level files; continuing.")
+                elif grouper_result == "success":
+                    print("Root-level grouping completed successfully.")
+                else:
+                    print(f"Unexpected result from grouper: {grouper_result}")
+                    exit(1)
 
-        if grouper_result == "error":
-            print("Error: Grouper.py failed with critical error. Cannot proceed.")
-            exit(1)
-        elif grouper_result == "no_files":
-            print("No image files found. Workflow completed - nothing to process.")
-            exit(0)
-        elif grouper_result == "no_groups":
-            print("\nNo focus stacking groups were created.")
-            print(
-                "This means no photos were taken close enough in time to be considered for focus stacking."
-            )
-            print("Skipping Step 3 (Photoshop processing) - workflow completed.")
-            print("\n" + "=" * 55)
-            print("WORKFLOW COMPLETED: Photos analyzed but no focus stacking needed")
-            print("=" * 55)
-            exit(0)
-        elif grouper_result == "success":
-            print(
-                "Photo grouping completed successfully! Proceeding to Photoshop step."
-            )
+            print(f"  Image-bearing subfolders discovered: {len(subfolder_names)}")
             if skip_photoshop:
                 print("Skipping Photoshop step because FOCUSSTACK_SKIP_PHOTOSHOP=1")
                 exit(0)
         else:
-            print(f"Unexpected result from grouper: {grouper_result}")
-            exit(1)
+            # Step 2: Run grouper.py to organize existing photos
+            print("\n" + "=" * 55)
+            print("📁 STEP 2: Running grouper.py to organize existing photos")
+            print("=" * 55)
+
+            grouper_result = run_grouper(current_folder_path)
+
+            if grouper_result == "error":
+                print("Error: Grouper.py failed with critical error. Cannot proceed.")
+                exit(1)
+            elif grouper_result == "no_files":
+                print("No image files found. Workflow completed - nothing to process.")
+                exit(0)
+            elif grouper_result == "no_groups":
+                print("\nNo focus stacking groups were created.")
+                print(
+                    "This means no photos were taken close enough in time to be considered for focus stacking."
+                )
+                print("Skipping Step 3 (Photoshop processing) - workflow completed.")
+                print("\n" + "=" * 55)
+                print("WORKFLOW COMPLETED: Photos analyzed but no focus stacking needed")
+                print("=" * 55)
+                exit(0)
+            elif grouper_result == "success":
+                print(
+                    "Photo grouping completed successfully! Proceeding to Photoshop step."
+                )
+                if skip_photoshop:
+                    print("Skipping Photoshop step because FOCUSSTACK_SKIP_PHOTOSHOP=1")
+                    exit(0)
+            else:
+                print(f"Unexpected result from grouper: {grouper_result}")
+                exit(1)
 
     # Step 3: Run Photoshop script for focus stacking (only if groups were created)
     print("\n" + "=" * 55)

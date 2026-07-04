@@ -31,6 +31,51 @@ def has_image_files(folder_path: str) -> bool:
     return False
 
 
+def find_subfolders_with_images(folder_path: str, folder_grouped: str) -> List[str]:
+    """
+    Find immediate subfolders inside a folder that contain image files.
+
+    Args:
+        folder_path: Parent folder to inspect
+        folder_grouped: Folder name to ignore (typically "fs")
+
+    Returns:
+        Sorted list of subfolder names that contain image files and are not the grouped folder
+    """
+    if not os.path.exists(folder_path) or not os.path.isdir(folder_path):
+        return []
+
+    subfolders: List[str] = []
+    for entry in sorted(os.listdir(folder_path)):
+        entry_path = os.path.join(folder_path, entry)
+        if not os.path.isdir(entry_path):
+            continue
+        if entry == folder_grouped:
+            continue
+        if has_image_files(entry_path):
+            subfolders.append(entry)
+
+    return subfolders
+
+
+def find_root_image_files(folder_path: str) -> List[str]:
+    """Return image files located directly in the given folder."""
+    if not os.path.exists(folder_path) or not os.path.isdir(folder_path):
+        return []
+
+    image_extensions = {'.jpg', '.jpeg', '.tiff', '.tif', '.bmp', '.png', '.heic'}
+    root_images: List[str] = []
+    for entry in sorted(os.listdir(folder_path)):
+        entry_path = os.path.join(folder_path, entry)
+        if not os.path.isfile(entry_path):
+            continue
+        _, ext = os.path.splitext(entry)
+        if ext.lower() in image_extensions:
+            root_images.append(entry)
+
+    return root_images
+
+
 def find_existing_folders(
     path_all_storing: str, folder_current_pattern: str
 ) -> List[Tuple[str, int]]:

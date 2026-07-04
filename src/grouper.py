@@ -191,6 +191,27 @@ def get_stacks(names: List[str], dates: List[datetime]) -> List[List[str]]:
     return stacks
 
 
+def build_unique_stack_path(fs_folder_path: str, base_name: str) -> str:
+    """Return a non-conflicting stack folder path for a given base name."""
+    candidate = os.path.join(fs_folder_path, base_name)
+    if not os.path.exists(candidate):
+        return candidate
+
+    suffix = 1
+    while True:
+        candidate = os.path.join(fs_folder_path, f"{base_name}_{suffix}")
+        if not os.path.exists(candidate):
+            return candidate
+        suffix += 1
+
+
+def get_renamed_stack_path(base_name: str, final_path: str) -> str:
+    """Return the final stack folder name, or an empty string when no rename was needed."""
+    if final_path.endswith(base_name):
+        return ""
+    return os.path.basename(final_path)
+
+
 def move_stacks(stacks: List[List[str]], jpg_folder: str) -> None:
     """
     Create 'fs' folder -> all the stack-folders inside of it -> move image-files-list
@@ -230,13 +251,10 @@ def move_stacks(stacks: List[List[str]], jpg_folder: str) -> None:
         stack_dirname = f"{first_name}_to_{last_name}"
         stack_path = os.path.join(fs_folder_path, stack_dirname)
 
-        # Check if stack folder already exists
-        if os.path.exists(stack_path):
-            print(f'\n🚨 CRITICAL ERROR 🚨')
-            print(f'❌ STACK FOLDER ALREADY EXISTS: {stack_dirname}')
-            print(f'❌ THIS SHOULD NOT HAPPEN - ABORTING TO PREVENT DATA LOSS')
-            sys.exit(1)
-
+        stack_path = build_unique_stack_path(fs_folder_path, stack_dirname)
+        renamed_path = get_renamed_stack_path(stack_dirname, stack_path)
+        if renamed_path:
+            print(f'  Renamed stack folder to: {renamed_path}')
         os.mkdir(stack_path)
         folder_count += 1
 

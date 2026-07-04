@@ -38,7 +38,8 @@ Example config:
     "folder_grouped": "fs",
     "path_all_storing": "/Volumes/External HD/Naturalist/",
     "folder_current_storing": "!newstack",
-    "photoshop_app": "Adobe Photoshop 2026"
+    "photoshop_app": "Adobe Photoshop 2026",
+    "process_subfolders_with_photoshop": false
 }
 ```
 
@@ -62,6 +63,7 @@ python main.py
 - `folder_grouped` is the folder name created by `grouper.py` and processed by Photoshop.
 - Workflow exits cleanly without Photoshop if no groups are found.
 - Supported image formats: JPG, JPEG, TIFF, TIF, BMP, PNG, HEIC.
+- When `process_subfolders_with_photoshop` is `true`, the workflow checks the current working folder for immediate subfolders that contain images (excluding the `fs` folder). If such subfolders exist, it also checks for image files directly in the parent folder. Root-level images are processed by grouper, and any image-bearing subfolders are passed to Photoshop so everything is handled in one run.
 
 ## Project Layout
 
@@ -104,6 +106,7 @@ Required settings:
 - `path_all_storing`
 - `folder_current_storing`
 - `photoshop_app`
+- `process_subfolders_with_photoshop` (optional, defaults to `false`)
 
 Tuning in `src/grouper.py`:
 - `MAX_TIME_DELTA = timedelta(seconds=2)`

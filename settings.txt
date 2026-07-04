@@ -5,5 +5,6 @@
     "folder_grouped": "fs",
     "path_all_storing": "/Volumes/External HD/Naturalist/",
     "folder_current_storing": "!newstack",
-    "photoshop_app": "Adobe Photoshop 2026"
+    "photoshop_app": "Adobe Photoshop 2026",
+    "process_subfolders_with_photoshop": false
 }
