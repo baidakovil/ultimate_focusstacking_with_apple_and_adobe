@@ -10,6 +10,7 @@ from .folder_manager import (
     create_folder_if_needed,
     find_subfolders_with_images,
     find_root_image_files,
+    collect_image_extensions,
 )
 
 
@@ -274,7 +275,9 @@ def main():
         print("  Skipping Step 1 because skip_icloud_fetcher is enabled.")
         print("  Workflow will use existing files in the current folder.")
 
-    # Calculate path_grouped for Photoshop script
+    subfolder_names = []
+    root_images = []
+    # Calculate default path_grouped for Photoshop script
     path_grouped = os.path.join(current_folder_path, folder_grouped)
 
     if action == "run_fetcher":
@@ -329,9 +332,6 @@ def main():
                     exit(1)
 
             print(f"  Image-bearing subfolders discovered: {len(subfolder_names)}")
-            if skip_photoshop:
-                print("Skipping Photoshop step because FOCUSSTACK_SKIP_PHOTOSHOP=1")
-                exit(0)
         else:
             # Step 2: Run grouper.py to organize photos
             print("\n" + "=" * 55)
@@ -404,9 +404,6 @@ def main():
                     exit(1)
 
             print(f"  Image-bearing subfolders discovered: {len(subfolder_names)}")
-            if skip_photoshop:
-                print("Skipping Photoshop step because FOCUSSTACK_SKIP_PHOTOSHOP=1")
-                exit(0)
         else:
             # Step 2: Run grouper.py to organize existing photos
             print("\n" + "=" * 55)
@@ -441,6 +438,35 @@ def main():
             else:
                 print(f"Unexpected result from grouper: {grouper_result}")
                 exit(1)
+
+    if process_subfolders_with_photoshop and (subfolder_names or root_images):
+        image_extensions = collect_image_extensions(current_folder_path, folder_grouped)
+        if len(image_extensions) > 1:
+            print("\n" + "=" * 55)
+            print("🚨 CRITICAL ERROR 🚨")
+            print("❌ Mixed source image types detected in root folder and subfolders.")
+            print(f"❌ Found types: {', '.join(sorted(image_extensions))}")
+            print("❌ Only one image file type may be processed in a single run.")
+            print("=" * 55)
+            exit(1)
+
+    # Determine final Photoshop input path in subfolder mode.
+    if process_subfolders_with_photoshop and subfolder_names:
+        path_grouped = current_folder_path
+        print("\n" + "=" * 55)
+        print("ℹ️ Photoshop will process the root folder in subfolder mode")
+        print(f"  Photoshop input folder: {path_grouped}")
+        print("=" * 55)
+    else:
+        path_grouped = os.path.join(current_folder_path, folder_grouped)
+        print("\n" + "=" * 55)
+        print("ℹ️ Photoshop will process the grouped output folder")
+        print(f"  Photoshop input folder: {path_grouped}")
+        print("=" * 55)
+
+    if skip_photoshop:
+        print("Skipping Photoshop step because FOCUSSTACK_SKIP_PHOTOSHOP=1")
+        exit(0)
 
     # Step 3: Run Photoshop script for focus stacking (only if groups were created)
     print("\n" + "=" * 55)

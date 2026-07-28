@@ -5,7 +5,19 @@ Handles finding the next available folder and determining workflow state.
 
 import os
 import re
-from typing import Tuple, List, Optional
+from typing import Tuple, List, Optional, Set
+
+IMAGE_EXTENSIONS = {'.arw', '.jpg', '.jpeg', '.tiff', '.tif', '.bmp', '.png', '.heic'}
+
+
+def normalize_image_extension(ext: str) -> str:
+    """Normalize equivalent file extensions to a common representation."""
+    ext = ext.lower()
+    if ext in {'.jpg', '.jpeg'}:
+        return '.jpg'
+    if ext in {'.tif', '.tiff'}:
+        return '.tiff'
+    return ext
 
 
 def has_image_files(folder_path: str) -> bool:
@@ -63,17 +75,43 @@ def find_root_image_files(folder_path: str) -> List[str]:
     if not os.path.exists(folder_path) or not os.path.isdir(folder_path):
         return []
 
-    image_extensions = {'.arw', '.jpg', '.jpeg', '.tiff', '.tif', '.bmp', '.png', '.heic'}
     root_images: List[str] = []
     for entry in sorted(os.listdir(folder_path)):
         entry_path = os.path.join(folder_path, entry)
         if not os.path.isfile(entry_path):
             continue
         _, ext = os.path.splitext(entry)
-        if ext.lower() in image_extensions:
+        if ext.lower() in IMAGE_EXTENSIONS:
             root_images.append(entry)
 
     return root_images
+
+
+def collect_image_extensions(folder_path: str, folder_grouped: str) -> Set[str]:
+    """Collect normalized image extensions from root and immediate subfolders."""
+    if not os.path.exists(folder_path) or not os.path.isdir(folder_path):
+        return set()
+
+    extensions: Set[str] = set()
+    for entry in sorted(os.listdir(folder_path)):
+        if entry == folder_grouped:
+            continue
+
+        entry_path = os.path.join(folder_path, entry)
+        if os.path.isfile(entry_path):
+            _, ext = os.path.splitext(entry)
+            if ext.lower() in IMAGE_EXTENSIONS:
+                extensions.add(normalize_image_extension(ext))
+        elif os.path.isdir(entry_path):
+            for child in sorted(os.listdir(entry_path)):
+                child_path = os.path.join(entry_path, child)
+                if not os.path.isfile(child_path):
+                    continue
+                _, ext = os.path.splitext(child)
+                if ext.lower() in IMAGE_EXTENSIONS:
+                    extensions.add(normalize_image_extension(ext))
+
+    return extensions
 
 
 def find_existing_folders(

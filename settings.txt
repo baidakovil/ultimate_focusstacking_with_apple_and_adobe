@@ -6,6 +6,6 @@
     "path_all_storing": "/Users/il/Pictures/Iulia/RAW",
     "folder_current_storing": "stack",
     "photoshop_app": "Adobe Photoshop 2026",
-    "process_subfolders_with_photoshop": false,
+    "process_subfolders_with_photoshop": true,
     "skip_icloud_fetcher": true
 }

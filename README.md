@@ -110,6 +110,12 @@ Required settings:
 - `process_subfolders_with_photoshop` (optional, defaults to `false`)
 - `skip_icloud_fetcher` (optional, defaults to `false`; when `true`, the workflow skips the iCloud photo import step and proceeds with whatever files are already in the current working folder)
 
+### Subfolder mode behavior
+When `process_subfolders_with_photoshop` is `true`, the workflow keeps the existing root-file grouping behavior and additionally processes subfolders directly in Photoshop.
+- If the root folder contains image files, those files are grouped by `grouper.py` into the `fs` folder.
+- If the root folder contains one or more image-bearing subfolders, Photoshop is given the root folder itself (`path_all_storing/folder_current_storing`) rather than `.../fs`.
+- This allows both root-level grouping and subfolder stacking to work together in the same run.
+
 Tuning in `src/grouper.py`:
 - `MAX_TIME_DELTA = timedelta(seconds=2)`
 - `MIN_STACK_LEN = 5`

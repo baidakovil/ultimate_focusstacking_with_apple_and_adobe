@@ -90,6 +90,112 @@ def test_arw_files_are_accepted():
         shutil.rmtree(temp_dir, ignore_errors=True)
 
 
+def test_photoshop_uses_root_folder_in_subfolder_mode():
+    """Test that subfolder mode passes the root folder to Photoshop."""
+    temp_dir = tempfile.mkdtemp(prefix="subfolder_mode_test_", dir=ROOT_DIR)
+    try:
+        current_folder = os.path.join(temp_dir, "!newstack")
+        os.makedirs(current_folder, exist_ok=True)
+
+        subfolder = os.path.join(current_folder, "120MSDCF")
+        os.makedirs(subfolder, exist_ok=True)
+        with open(os.path.join(subfolder, "DSC00001.ARW"), "wb") as f:
+            f.write(b"fake")
+
+        settings_path = os.path.join(temp_dir, "test_settings.json")
+        settings = {
+            "hours_icloud": "1",
+            "stacker": "stacker.js",
+            "folder_grouped": "fs",
+            "path_all_storing": temp_dir,
+            "folder_current_storing": "!newstack",
+            "photoshop_app": "Adobe Photoshop 2026",
+            "process_subfolders_with_photoshop": True,
+            "skip_icloud_fetcher": True,
+        }
+        with open(settings_path, "w", encoding="utf-8") as f:
+            json.dump(settings, f, indent=2)
+
+        env = {
+            **os.environ,
+            "FOCUSSTACK_SETTINGS": settings_path,
+            "FOCUSSTACK_SKIP_PHOTOSHOP": "1",
+        }
+
+        result = subprocess.run(
+            [sys.executable, "-m", "src.runner"],
+            cwd=ROOT_DIR,
+            env=env,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        assert result.returncode == 0, f"Workflow failed with exit code {result.returncode}: {result.stderr}"
+        assert "Photoshop input folder: " in result.stdout
+        assert f"Photoshop input folder: {current_folder}" in result.stdout
+        print("✅ Subfolder mode passes the root folder to Photoshop")
+
+    finally:
+        shutil.rmtree(temp_dir, ignore_errors=True)
+
+
+def test_mixed_types_across_root_and_subfolders_are_rejected():
+    """Test that mixed file types across root and subfolders are rejected in subfolder mode."""
+    temp_dir = tempfile.mkdtemp(prefix="mixed_subfolder_types_test_", dir=ROOT_DIR)
+    try:
+        current_folder = os.path.join(temp_dir, "!newstack")
+        os.makedirs(current_folder, exist_ok=True)
+
+        with open(os.path.join(current_folder, "IMG_0002.JPG"), "wb") as f:
+            f.write(b"fake")
+
+        subfolder = os.path.join(current_folder, "120MSDCF")
+        os.makedirs(subfolder, exist_ok=True)
+        with open(os.path.join(subfolder, "DSC00001.ARW"), "wb") as f:
+            f.write(b"fake")
+
+        settings_path = os.path.join(temp_dir, "test_settings.json")
+        settings = {
+            "hours_icloud": "1",
+            "stacker": "stacker.js",
+            "folder_grouped": "fs",
+            "path_all_storing": temp_dir,
+            "folder_current_storing": "!newstack",
+            "photoshop_app": "Adobe Photoshop 2026",
+            "process_subfolders_with_photoshop": True,
+            "skip_icloud_fetcher": True,
+        }
+        with open(settings_path, "w", encoding="utf-8") as f:
+            json.dump(settings, f, indent=2)
+
+        env = {
+            **os.environ,
+            "FOCUSSTACK_SETTINGS": settings_path,
+            "FOCUSSTACK_SKIP_PHOTOSHOP": "1",
+        }
+
+        result = subprocess.run(
+            [sys.executable, "-m", "src.runner"],
+            cwd=ROOT_DIR,
+            env=env,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        assert result.returncode == 1, (
+            f"Expected failure for mixed types across root and subfolders, got {result.returncode}."
+        )
+        assert "Mixed source image types" in result.stdout or "Mixed source image types" in result.stderr
+        assert ".arw" in result.stdout + result.stderr
+        assert ".jpg" in result.stdout + result.stderr
+        print("✅ Mixed ARW/JPG files across root and subfolders are rejected")
+
+    finally:
+        shutil.rmtree(temp_dir, ignore_errors=True)
+
+
 def test_mixed_types_are_rejected():
     """Test that mixed source file types cause a clear failure."""
     temp_dir = tempfile.mkdtemp(prefix="mixed_type_test_")
