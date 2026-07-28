@@ -7,8 +7,12 @@ function main(args) {
     var folderPath = args && args.length > 0 ? args[0] : null;
     var outputFormat = args && args.length > 1 ? args[1] : "jpg";
     var outputFolder = args && args.length > 2 ? args[2] : null;
-    var result = runFocusStacking(folderPath, outputFormat, outputFolder);
-    return "Focus stacking completed: " + result;
+
+    try {
+        return runFocusStacking(folderPath, outputFormat, outputFolder);
+    } catch (e) {
+        return "ERROR: " + getErrorText(e);
+    }
 }
 
 function runFocusStacking(folderPath, outputFormat, outputFolder) {
@@ -19,17 +23,33 @@ function runFocusStacking(folderPath, outputFormat, outputFolder) {
 
     var folders = getSubfolders(mainFolder);
     var processedFolders = 0;
+    var failedFolders = [];
 
     for (var i = 0; i < folders.length; i++) {
         var currentFolder = folders[i];
-        if (currentFolder instanceof Folder) {
+        if (!(currentFolder instanceof Folder)) {
+            continue;
+        }
+
+        try {
+            $.writeln("Processing folder: " + currentFolder.fsName);
             if (processFolder(currentFolder, outputFolder, outputFormat)) {
                 processedFolders++;
+            } else {
+                $.writeln("Skipped folder (not enough images or no valid files): " + currentFolder.fsName);
             }
+        } catch (e) {
+            failedFolders.push(currentFolder.name + ": " + getErrorText(e));
+            $.writeln("Folder failed: " + currentFolder.fsName + " -> " + getErrorText(e));
+            closeAllOpenDocuments();
         }
     }
 
-    return "Success: Processed " + processedFolders + " folder(s) for focus stacking";
+    var result = "Success: Processed " + processedFolders + " folder(s) for focus stacking";
+    if (failedFolders.length) {
+        result += "; Failed " + failedFolders.length + " folder(s): " + failedFolders.join("; ");
+    }
+    return result;
 }
 
 function resolveInputFolder(folderPath) {
@@ -64,9 +84,17 @@ function processFolder(selectedFolder, outputFolder, outputFormat) {
         return false;
     }
 
-    if (!outputFolder) {
-        outputFolder = selectedFolder.parent;
+    if (outputFolder) {
+        var outputFolderRef = new Folder(outputFolder);
+        if (!outputFolderRef.exists) {
+            outputFolderRef.create();
+        }
+        outputFolder = outputFolderRef.fsName;
+    } else {
+        outputFolder = selectedFolder.parent.fsName;
     }
+
+    closeAllOpenDocuments();
 
     var imageFiles = selectedFolder.getFiles(SUPPORTED_IMAGE_REGEX);
     if (!imageFiles || imageFiles.length < 2) {
@@ -111,6 +139,16 @@ function loadImagesIntoStack(files) {
     loadLayers.intoStack(files);
 }
 
+function closeAllOpenDocuments() {
+    while (app.documents.length > 0) {
+        try {
+            app.activeDocument.close(SaveOptions.DONOTSAVECHANGES);
+        } catch (e) {
+            break;
+        }
+    }
+}
+
 function selectAllLayers() {
     var desc = new ActionDescriptor();
     var ref = new ActionReference();
@@ -152,10 +190,19 @@ function saveAsJpeg(fileRef) {
     jpgOptions.scans = 5;
     jpgOptions.matte = MatteType.NONE;
 
+    $.writeln("Saving JPEG to " + fileRef.fsName);
     activeDocument.saveAs(fileRef, jpgOptions, true, Extension.LOWERCASE);
+    $.writeln("Saved JPEG: " + fileRef.fsName);
 }
 
 function saveAsTiff16(fileRef) {
+    var originalDocument = activeDocument;
+    var saveDoc = originalDocument.duplicate();
+    saveDoc.activate();
+    saveDoc.changeMode(ChangeMode.RGB);
+    saveDoc.bitsPerChannel = BitsPerChannelType.SIXTEEN;
+    saveDoc.flatten();
+
     var tiffOptions = new TiffSaveOptions();
     tiffOptions.imageCompression = TIFFEncoding.NONE;
     tiffOptions.layers = false;
@@ -163,13 +210,30 @@ function saveAsTiff16(fileRef) {
     tiffOptions.alphaChannels = false;
     tiffOptions.byteOrder = ByteOrder.IBM;
     tiffOptions.saveImagePyramid = false;
-    tiffOptions.pixelFormat = PixelFormat.TWENTYFOUR; // 16-bit per channel
 
-    activeDocument.saveAs(fileRef, tiffOptions, true, Extension.LOWERCASE);
+    $.writeln("Saving TIFF 16-bit to " + fileRef.fsName);
+    saveDoc.saveAs(fileRef, tiffOptions, true, Extension.TIFF);
+    saveDoc.close(SaveOptions.DONOTSAVECHANGES);
+    $.writeln("Saved TIFF: " + fileRef.fsName);
 }
 
 function getBaseName(name) {
     return name.replace(/\.[^.]+$/i, '');
+}
+
+function getErrorText(e) {
+    if (!e) {
+        return 'Unknown error';
+    }
+
+    var message = e.message || e.toString();
+    if (e.line !== undefined) {
+        message += ' (line ' + e.line + ')';
+    }
+    if (e.stack) {
+        message += '\n' + e.stack;
+    }
+    return message;
 }
 
 main(startupArguments);

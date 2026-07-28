@@ -183,6 +183,12 @@ def run_photoshop_script(stacker, path_grouped, photoshop_app, output_format, ou
         return True
     except subprocess.CalledProcessError as e:
         print(f"Error executing Photoshop script: {e}")
+        if e.stdout:
+            print("Photoshop stdout:")
+            print(e.stdout.strip())
+        if e.stderr:
+            print("Photoshop stderr:")
+            print(e.stderr.strip())
         print(f"AppleScript command was: {applescript_command}")
         return False
 
