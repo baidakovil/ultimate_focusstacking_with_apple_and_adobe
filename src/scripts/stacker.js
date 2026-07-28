@@ -5,11 +5,13 @@ var SUPPORTED_IMAGE_REGEX = /\.(arw|jpg|jpe|jpeg|dng|bmp|tif|tiff|psd|crw|cr2|ex
 
 function main(args) {
     var folderPath = args && args.length > 0 ? args[0] : null;
-    var result = runFocusStacking(folderPath);
+    var outputFormat = args && args.length > 1 ? args[1] : "jpg";
+    var outputFolder = args && args.length > 2 ? args[2] : null;
+    var result = runFocusStacking(folderPath, outputFormat, outputFolder);
     return "Focus stacking completed: " + result;
 }
 
-function runFocusStacking(folderPath) {
+function runFocusStacking(folderPath, outputFormat, outputFolder) {
     var mainFolder = resolveInputFolder(folderPath);
     if (!mainFolder) {
         return "Error: No folder selected";
@@ -21,7 +23,7 @@ function runFocusStacking(folderPath) {
     for (var i = 0; i < folders.length; i++) {
         var currentFolder = folders[i];
         if (currentFolder instanceof Folder) {
-            if (processFolder(currentFolder, mainFolder)) {
+            if (processFolder(currentFolder, outputFolder, outputFormat)) {
                 processedFolders++;
             }
         }
@@ -57,9 +59,13 @@ function getSubfolders(rootFolder) {
     return folders;
 }
 
-function processFolder(selectedFolder, outputFolder) {
+function processFolder(selectedFolder, outputFolder, outputFormat) {
     if (!selectedFolder) {
         return false;
+    }
+
+    if (!outputFolder) {
+        outputFolder = selectedFolder.parent;
     }
 
     var imageFiles = selectedFolder.getFiles(SUPPORTED_IMAGE_REGEX);
@@ -79,8 +85,15 @@ function processFolder(selectedFolder, outputFolder) {
         blendAlignedLayers();
 
         var baseName = getBaseName(selectedFolder.name);
-        var outputFile = new File(outputFolder + '/' + baseName + '_fs.jpg');
-        saveAsJpeg(outputFile);
+        var extension = outputFormat && outputFormat.toLowerCase() === 'tiff16' ? 'tif' : 'jpg';
+        var outputFile = new File(outputFolder + '/' + baseName + '_fs.' + extension);
+
+        if (extension === 'tif') {
+            saveAsTiff16(outputFile);
+        } else {
+            saveAsJpeg(outputFile);
+        }
+
         app.activeDocument.close(SaveOptions.DONOTSAVECHANGES);
         return true;
     } catch (e) {
@@ -140,6 +153,19 @@ function saveAsJpeg(fileRef) {
     jpgOptions.matte = MatteType.NONE;
 
     activeDocument.saveAs(fileRef, jpgOptions, true, Extension.LOWERCASE);
+}
+
+function saveAsTiff16(fileRef) {
+    var tiffOptions = new TiffSaveOptions();
+    tiffOptions.imageCompression = TIFFEncoding.NONE;
+    tiffOptions.layers = false;
+    tiffOptions.embedColorProfile = true;
+    tiffOptions.alphaChannels = false;
+    tiffOptions.byteOrder = ByteOrder.IBM;
+    tiffOptions.saveImagePyramid = false;
+    tiffOptions.pixelFormat = PixelFormat.TWENTYFOUR; // 16-bit per channel
+
+    activeDocument.saveAs(fileRef, tiffOptions, true, Extension.LOWERCASE);
 }
 
 function getBaseName(name) {

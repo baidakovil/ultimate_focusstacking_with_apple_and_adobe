@@ -140,14 +140,22 @@ def run_grouper(path_current):
         return "error"
 
 
-def run_photoshop_script(stacker, path_grouped, photoshop_app):
+def run_photoshop_script(stacker, path_grouped, photoshop_app, output_format, output_folder):
     # Check if the script file exists
     if not os.path.exists(stacker):
         print(f"Error: Script file not found: {stacker}")
         return False
 
-    # Pass folder path as argument to the JavaScript
-    applescript_command = f'tell application "{photoshop_app}" to do javascript of file "{stacker}" with arguments {{"{path_grouped}"}}'
+    if output_folder:
+        try:
+            os.makedirs(output_folder, exist_ok=True)
+            print(f"✅ Created or verified output folder: {output_folder}")
+        except Exception as e:
+            print(f"Error creating output folder '{output_folder}': {e}")
+            return False
+
+    # Pass folder path, output format, and output folder arguments to the JavaScript
+    applescript_command = f'tell application "{photoshop_app}" to do javascript of file "{stacker}" with arguments {{"{path_grouped}", "{output_format}", "{output_folder}"}}'
 
     try:
         result = subprocess.run(
@@ -198,8 +206,18 @@ def main():
         "process_subfolders_with_photoshop", False
     )
     skip_icloud_fetcher = settings.get("skip_icloud_fetcher", False)
+    output_format = settings.get("output_format", "jpg")
+    output_folder = settings.get("output_folder", "")
     if isinstance(skip_icloud_fetcher, str):
         skip_icloud_fetcher = skip_icloud_fetcher.lower() in {"1", "true", "yes", "on"}
+    if isinstance(output_format, str):
+        output_format = output_format.lower()
+    else:
+        output_format = "jpg"
+    if isinstance(output_folder, str):
+        output_folder = os.path.abspath(os.path.expanduser(output_folder))
+    else:
+        output_folder = ""
 
     # Validate required settings
     if not all(
@@ -242,6 +260,8 @@ def main():
     print(f"  Grouped Folder Name: {folder_grouped}")
     print(f"  Stacker Script: {stacker}")
     print(f"  Photoshop: {photoshop_app}")
+    print(f"  Output format: {output_format}")
+    print(f"  Output folder: {output_folder}")
     print(f"  Hours to fetch: {hours_icloud}")
     print(f"  Subfolder mode: {'enabled' if process_subfolders_with_photoshop else 'disabled'}")
     print(f"  Skip iCloud fetcher: {'enabled' if skip_icloud_fetcher else 'disabled'}")
@@ -473,7 +493,7 @@ def main():
     print("🎨 STEP 3: Running Photoshop script for focus stacking")
     print("=" * 55)
 
-    if not run_photoshop_script(stacker, path_grouped, photoshop_app):
+    if not run_photoshop_script(stacker, path_grouped, photoshop_app, output_format, output_folder):
         print("Error: Photoshop script failed.")
         exit(1)
 
