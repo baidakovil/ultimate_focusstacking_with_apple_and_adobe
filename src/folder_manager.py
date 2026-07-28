@@ -18,7 +18,7 @@ def has_image_files(folder_path: str) -> bool:
     Returns:
         True if folder contains image files, False otherwise
     """
-    image_extensions = {'.jpg', '.jpeg', '.tiff', '.tif', '.bmp', '.png', '.heic'}
+    image_extensions = {'.arw', '.jpg', '.jpeg', '.tiff', '.tif', '.bmp', '.png', '.heic'}
 
     if not os.path.exists(folder_path) or not os.path.isdir(folder_path):
         return False
@@ -63,7 +63,7 @@ def find_root_image_files(folder_path: str) -> List[str]:
     if not os.path.exists(folder_path) or not os.path.isdir(folder_path):
         return []
 
-    image_extensions = {'.jpg', '.jpeg', '.tiff', '.tif', '.bmp', '.png', '.heic'}
+    image_extensions = {'.arw', '.jpg', '.jpeg', '.tiff', '.tif', '.bmp', '.png', '.heic'}
     root_images: List[str] = []
     for entry in sorted(os.listdir(folder_path)):
         entry_path = os.path.join(folder_path, entry)

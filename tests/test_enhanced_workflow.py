@@ -4,10 +4,13 @@ Test script to verify the enhanced workflow functionality.
 Tests the new image format support and incremental folder management.
 """
 
+import contextlib
+import io
 import os
 import sys
 import tempfile
 import shutil
+from unittest.mock import patch
 from zipfile import ZipFile
 import json
 import subprocess
@@ -61,6 +64,62 @@ def test_multiple_image_formats():
         raise AssertionError(f"Multiple image formats test failed: {e}") from e
     finally:
         shutil.rmtree(test_dir, ignore_errors=True)
+
+
+def test_arw_files_are_accepted():
+    """Test that ARW files are accepted as valid source input."""
+    temp_dir = tempfile.mkdtemp(prefix="arw_support_test_")
+    try:
+        arw_file = os.path.join(temp_dir, "IMG_0001.ARW")
+        with open(arw_file, "wb") as f:
+            f.write(b"fake")
+
+        sys.path.insert(0, ROOT_DIR)
+        from src.grouper import read_jpg
+
+        with patch("src.grouper.piexif.load", return_value={"0th": {306: b"2024:01:01 12:00:00"}}):
+            buf = io.StringIO()
+            with contextlib.redirect_stdout(buf):
+                names, dates = read_jpg(temp_dir)
+
+        assert names == ["IMG_0001.ARW"], f"Expected ARW file to be accepted, got {names}"
+        assert len(dates) == 1, "Expected one timestamp from the ARW file"
+        print("✅ ARW files are accepted as source input")
+
+    finally:
+        shutil.rmtree(temp_dir, ignore_errors=True)
+
+
+def test_mixed_types_are_rejected():
+    """Test that mixed source file types cause a clear failure."""
+    temp_dir = tempfile.mkdtemp(prefix="mixed_type_test_")
+    try:
+        arw_file = os.path.join(temp_dir, "IMG_0001.ARW")
+        jpg_file = os.path.join(temp_dir, "IMG_0002.JPG")
+        with open(arw_file, "wb") as f:
+            f.write(b"fake")
+        with open(jpg_file, "wb") as f:
+            f.write(b"fake")
+
+        sys.path.insert(0, ROOT_DIR)
+        from src.grouper import read_jpg
+
+        with patch("src.grouper.piexif.load", return_value={"0th": {306: b"2024:01:01 12:00:00"}}):
+            buf = io.StringIO()
+            with contextlib.redirect_stdout(buf):
+                try:
+                    read_jpg(temp_dir)
+                    assert False, "Expected SystemExit when mixed file types are present"
+                except SystemExit as e:
+                    assert e.code == 1, f"Unexpected exit code: {e.code}"
+
+        output = buf.getvalue()
+        assert "Mixed source image types" in output, f"Unexpected output: {output}"
+        assert ".arw" in output and ".jpg" in output, f"Expected both extensions in output: {output}"
+        print("✅ Mixed source file types are rejected with a clear error")
+
+    finally:
+        shutil.rmtree(temp_dir, ignore_errors=True)
 
 
 def test_folder_increment_logic():

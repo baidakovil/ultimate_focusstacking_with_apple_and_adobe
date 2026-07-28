@@ -36,6 +36,16 @@ LENGTH_STACK_WARNING = 10
 TIMESTAMP_FORMAT_EXIF = '%Y:%m:%d %H:%M:%S'
 
 
+def _normalize_extension(ext: str) -> str:
+    """Normalize equivalent file extensions to a common representation."""
+    ext = ext.lower()
+    if ext in {'.jpg', '.jpeg'}:
+        return '.jpg'
+    if ext in {'.tif', '.tiff'}:
+        return '.tiff'
+    return ext
+
+
 def read_jpg(jpg_folder: str) -> Tuple[List[str], List[datetime]]:
     """
     Read names of image files in source folder and timestamps when they were taken.
@@ -47,7 +57,7 @@ def read_jpg(jpg_folder: str) -> Tuple[List[str], List[datetime]]:
     print('\nRead image files...', end='')
 
     # Supported image file extensions
-    image_extensions = {'.jpg', '.jpeg', '.tiff', '.tif', '.bmp', '.png', '.heic'}
+    image_extensions = {'.arw', '.jpg', '.jpeg', '.tiff', '.tif', '.bmp', '.png', '.heic'}
 
     names = []
     for file in os.listdir(jpg_folder):
@@ -59,6 +69,17 @@ def read_jpg(jpg_folder: str) -> Tuple[List[str], List[datetime]]:
     names = sorted(names)
 
     if len(names) != 0:
+        # Ensure source files are all the same type
+        extension_set = {
+            _normalize_extension(os.path.splitext(name)[1].lower()) for name in names
+        }
+        if len(extension_set) > 1:
+            actual_exts = sorted({os.path.splitext(name)[1].lower() for name in names})
+            print('\n🚨 CRITICAL ERROR 🚨')
+            print('❌ Mixed source image types detected. Only one file type may be processed at a time.')
+            print(f'❌ Found types: {", ".join(actual_exts)}')
+            sys.exit(1)
+
         print(f'ok.\nGot {len(names)} image files in folder')
     else:
         print('\nNo image files in folder! Exit')
