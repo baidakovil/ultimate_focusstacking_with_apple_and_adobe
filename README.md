@@ -65,7 +65,12 @@ python main.py
 - Workflow exits cleanly without Photoshop if no groups are found.
 - Supported image formats: JPG, JPEG, TIFF, TIF, BMP, PNG, HEIC.
 - When `process_subfolders_with_photoshop` is `true`, the workflow checks the current working folder for immediate subfolders that contain images (excluding the `fs` folder). If such subfolders exist, it also checks for image files directly in the parent folder. Root-level images are processed by grouper, and any image-bearing subfolders are passed to Photoshop so everything is handled in one run.
+### `release_arw_crop`
 
+- When `true`, the workflow scans found `.ARW` files before Photoshop runs.
+- For each ARW, it reads the image dimensions and checks whether crop metadata is already released/clean.
+- If the file is already clean, it is skipped and a message is printed.
+- If crop metadata still exists, it rewrites the ARW in-place so crop origin and size are reset to the full image dimensions.
 ## Project Layout
 
 ```

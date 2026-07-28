@@ -224,6 +224,10 @@ def release_arw_crop_files(path_grouped):
             print(f"Error: Could not determine sensor dimensions for {arw_file}")
             return False
 
+        if is_arw_crop_released(arw_file, width, height):
+            print(f"🔧 release_arw_crop: already released or clean, skipping {arw_file}")
+            continue
+
         cmd = [
             exiftool_cmd,
             "-overwrite_original",
@@ -240,6 +244,61 @@ def release_arw_crop_files(path_grouped):
 
     print("🔧 release_arw_crop: metadata rewrite complete.")
     return True
+
+
+def is_arw_crop_released(arw_file, width, height):
+    exiftool_cmd = shutil.which("exiftool")
+    if not exiftool_cmd:
+        return False
+
+    result = subprocess.run(
+        [
+            exiftool_cmd,
+            "-s",
+            "-s",
+            "-DefaultCropOrigin",
+            "-DefaultCropSize",
+            "-SonyCropTopLeft",
+            "-SonyCropSize",
+            arw_file,
+        ],
+        capture_output=True,
+        text=True,
+    )
+
+    if result.returncode != 0:
+        return False
+
+    tags = {}
+    for line in result.stdout.splitlines():
+        parts = line.split(":", 1)
+        if len(parts) != 2:
+            continue
+        tag = parts[0].strip()
+        value = parts[1].strip()
+        tags[tag] = value
+
+    expected_origin = "0 0"
+    expected_size = f"{width} {height}"
+    default_ok = (
+        tags.get("DefaultCropOrigin", "") == expected_origin
+        and tags.get("DefaultCropSize", "") == expected_size
+    )
+    sony_ok = (
+        tags.get("SonyCropTopLeft", "") == expected_origin
+        and tags.get("SonyCropSize", "") == expected_size
+    )
+
+    if default_ok and sony_ok:
+        return True
+
+    if all(
+        tags.get(tag, "") == ""
+        for tag in ["DefaultCropOrigin", "DefaultCropSize", "SonyCropTopLeft", "SonyCropSize"]
+    ):
+        return True
+
+    return False
 
 
 def get_arw_dimensions(arw_file):

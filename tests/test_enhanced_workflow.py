@@ -395,23 +395,90 @@ def test_release_arw_crop_setting_invokes_exiftool():
                     stdout="SubIFD:ImageWidth: 6000\nSubIFD:ImageHeight: 4000\n",
                     stderr="",
                 ),
+                subprocess.CompletedProcess(
+                    args=[],
+                    returncode=0,
+                    stdout=(
+                        "DefaultCropOrigin: 10 10\n"
+                        "DefaultCropSize: 3000 2000\n"
+                        "SonyCropTopLeft: 10 10\n"
+                        "SonyCropSize: 3000 2000\n"
+                    ),
+                    stderr="",
+                ),
                 subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr=""),
             ]
             result = release_arw_crop_files(current_folder)
 
         assert result is True, "release_arw_crop_files should return True when exiftool succeeds"
-        assert mock_run.call_count == 2, "Expected exiftool to be invoked for dimensions and metadata rewrite"
+        assert mock_run.call_count == 3, "Expected exiftool to be invoked for dimensions, metadata check, and rewrite"
 
         first_call = mock_run.call_args_list[0][0][0]
         assert "/usr/bin/exiftool" in first_call, "First call should query exiftool for dimensions"
 
         second_call = mock_run.call_args_list[1][0][0]
-        assert "/usr/bin/exiftool" in second_call, "Second call should invoke exiftool rewrite"
-        assert "-overwrite_original" in second_call, "Expected metadata rewrite to use overwrite_original"
-        assert "-DefaultCropOrigin=0 0" in second_call
-        assert "-SonyCropTopLeft=0 0" in second_call
+        assert "/usr/bin/exiftool" in second_call, "Second call should query metadata tags"
+        assert "-s" in second_call
+        assert "-DefaultCropOrigin" in second_call
+
+        third_call = mock_run.call_args_list[2][0][0]
+        assert "/usr/bin/exiftool" in third_call, "Third call should invoke exiftool rewrite"
+        assert "-overwrite_original" in third_call, "Expected metadata rewrite to use overwrite_original"
+        assert "-DefaultCropOrigin=0 0" in third_call
+        assert "-SonyCropTopLeft=0 0" in third_call
 
         print("✅ release_arw_crop setting successfully triggered exiftool metadata rewrite")
+
+    finally:
+        shutil.rmtree(temp_dir, ignore_errors=True)
+
+
+def test_release_arw_crop_skips_clean_arw_files():
+    """Test that clean ARW files are skipped without redundant rewrite."""
+    print("\n" + "=" * 60)
+    print("TEST 5: release_arw_crop skip clean ARW files")
+    print("=" * 60)
+
+    temp_dir = tempfile.mkdtemp(prefix="release_arw_crop_skip_test_")
+    try:
+        current_folder = os.path.join(temp_dir, "!newstack")
+        os.makedirs(current_folder, exist_ok=True)
+        subfolder = os.path.join(current_folder, "120MSDCF")
+        os.makedirs(subfolder, exist_ok=True)
+        arw_file = os.path.join(subfolder, "DSC00001.ARW")
+        with open(arw_file, "wb") as f:
+            f.write(b"fake")
+
+        from src.runner import release_arw_crop_files
+
+        with patch("src.runner.shutil.which", return_value="/usr/bin/exiftool"), patch(
+            "src.runner.subprocess.run"
+        ) as mock_run:
+            mock_run.side_effect = [
+                subprocess.CompletedProcess(
+                    args=[],
+                    returncode=0,
+                    stdout="SubIFD:ImageWidth: 6000\nSubIFD:ImageHeight: 4000\n",
+                    stderr="",
+                ),
+                subprocess.CompletedProcess(
+                    args=[],
+                    returncode=0,
+                    stdout=(
+                        "DefaultCropOrigin: 0 0\n"
+                        "DefaultCropSize: 6000 4000\n"
+                        "SonyCropTopLeft: 0 0\n"
+                        "SonyCropSize: 6000 4000\n"
+                    ),
+                    stderr="",
+                ),
+            ]
+            result = release_arw_crop_files(current_folder)
+
+        assert result is True, "release_arw_crop_files should return True when ARW is already clean"
+        assert mock_run.call_count == 2, "Expected only dimension and metadata checks, no rewrite"
+
+        print("✅ release_arw_crop correctly skipped clean ARW files")
 
     finally:
         shutil.rmtree(temp_dir, ignore_errors=True)
