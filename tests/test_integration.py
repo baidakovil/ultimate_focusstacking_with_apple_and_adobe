@@ -9,6 +9,7 @@ import os
 import json
 import sys
 import shutil
+import tempfile
 from zipfile import ZipFile
 
 ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
@@ -138,6 +139,7 @@ def test_runner_settings_validation():
             "path_all_storing",
             "folder_current_storing",
             "photoshop_app",
+            "skip_icloud_fetcher",
         ]
         for key in required_keys:
             assert key in settings, f"Missing required setting: {key}"
@@ -148,6 +150,65 @@ def test_runner_settings_validation():
 
     except Exception as e:
         raise AssertionError(f"Settings test failed: {e}") from e
+
+
+def test_runner_skips_icloud_fetcher_when_flag_enabled():
+    """Test that runner skips Step 1 when skip_icloud_fetcher is enabled and still processes existing files."""
+    print("\n" + "=" * 60)
+    print("TEST 4: Skip iCloud fetcher flag")
+    print("=" * 60)
+
+    temp_dir = tempfile.mkdtemp(prefix="focusstack_skip_fetcher_test_", dir=ROOT_DIR)
+    try:
+        current_folder = os.path.join(temp_dir, "!newstack")
+        os.makedirs(current_folder, exist_ok=True)
+
+        test_zip = os.path.join(ROOT_DIR, "test", "test_97f.zip")
+        assert os.path.exists(test_zip), f"Test file not found: {test_zip}"
+        with ZipFile(test_zip, "r") as zip_file:
+            zip_file.extractall(current_folder)
+
+        settings_path = os.path.join(temp_dir, "test_settings.json")
+        settings = {
+            "hours_icloud": "1",
+            "stacker": "stacker.js",
+            "folder_grouped": "fs",
+            "path_all_storing": temp_dir,
+            "folder_current_storing": "!newstack",
+            "photoshop_app": "Adobe Photoshop 2026",
+            "skip_icloud_fetcher": True,
+        }
+        with open(settings_path, "w", encoding="utf-8") as f:
+            json.dump(settings, f, indent=2)
+
+        env = {
+            **os.environ,
+            "FOCUSSTACK_SETTINGS": settings_path,
+            "FOCUSSTACK_SKIP_PHOTOSHOP": "1",
+        }
+
+        result = subprocess.run(
+            [sys.executable, "-m", "src.runner"],
+            cwd=ROOT_DIR,
+            env=env,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        print("Runner output:")
+        print(result.stdout)
+        if result.stderr:
+            print("Runner errors:")
+            print(result.stderr)
+
+        assert result.returncode == 0, f"Workflow failed with exit code {result.returncode}: {result.stderr}"
+        assert "Skipping Step 1" in result.stdout, "Runner did not print the skip message"
+        assert os.path.exists(os.path.join(current_folder, "fs")), "No 'fs' folder created"
+        print("✅ Runner skipped iCloud fetcher and processed existing files")
+
+    finally:
+        shutil.rmtree(temp_dir, ignore_errors=True)
 
 
 if __name__ == "__main__":

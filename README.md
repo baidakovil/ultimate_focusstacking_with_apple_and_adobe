@@ -39,7 +39,8 @@ Example config:
     "path_all_storing": "/Volumes/External HD/Naturalist/",
     "folder_current_storing": "!newstack",
     "photoshop_app": "Adobe Photoshop 2026",
-    "process_subfolders_with_photoshop": false
+    "process_subfolders_with_photoshop": false,
+    "skip_icloud_fetcher": false
 }
 ```
 
@@ -107,6 +108,7 @@ Required settings:
 - `folder_current_storing`
 - `photoshop_app`
 - `process_subfolders_with_photoshop` (optional, defaults to `false`)
+- `skip_icloud_fetcher` (optional, defaults to `false`; when `true`, the workflow skips the iCloud photo import step and proceeds with whatever files are already in the current working folder)
 
 Tuning in `src/grouper.py`:
 - `MAX_TIME_DELTA = timedelta(seconds=2)`

@@ -196,6 +196,9 @@ def main():
     process_subfolders_with_photoshop = settings.get(
         "process_subfolders_with_photoshop", False
     )
+    skip_icloud_fetcher = settings.get("skip_icloud_fetcher", False)
+    if isinstance(skip_icloud_fetcher, str):
+        skip_icloud_fetcher = skip_icloud_fetcher.lower() in {"1", "true", "yes", "on"}
 
     # Validate required settings
     if not all(
@@ -240,6 +243,7 @@ def main():
     print(f"  Photoshop: {photoshop_app}")
     print(f"  Hours to fetch: {hours_icloud}")
     print(f"  Subfolder mode: {'enabled' if process_subfolders_with_photoshop else 'disabled'}")
+    print(f"  Skip iCloud fetcher: {'enabled' if skip_icloud_fetcher else 'disabled'}")
     print()
 
     # Determine what action to take based on existing folders
@@ -252,6 +256,9 @@ def main():
     )
 
     skip_photoshop = os.environ.get("FOCUSSTACK_SKIP_PHOTOSHOP") == "1"
+    skip_icloud_fetcher_env = os.environ.get("FOCUSSTACK_SKIP_ICLOUD_FETCHER") == "1"
+    if skip_icloud_fetcher_env:
+        skip_icloud_fetcher = True
 
     if action == "error":
         print(f"Error: {current_folder_path}")
@@ -259,6 +266,13 @@ def main():
 
     print(f"Determined action: {action}")
     print(f"Working with folder: {current_folder_path}")
+
+    if skip_icloud_fetcher:
+        print("\n" + "=" * 55)
+        print("⏭️ STEP 1: Skipping iCloud photo fetcher")
+        print("=" * 55)
+        print("  Skipping Step 1 because skip_icloud_fetcher is enabled.")
+        print("  Workflow will use existing files in the current folder.")
 
     # Calculate path_grouped for Photoshop script
     path_grouped = os.path.join(current_folder_path, folder_grouped)
@@ -269,14 +283,15 @@ def main():
             print("Error: Could not create current folder. Cannot proceed.")
             exit(1)
 
-        # Step 1: Run fetcher.py to extract photos from Photos library
-        print("\n" + "=" * 55)
-        print("📸 STEP 1: Fetching photos from Photos library")
-        print("=" * 55)
+        if not skip_icloud_fetcher:
+            # Step 1: Run fetcher.py to extract photos from Photos library
+            print("\n" + "=" * 55)
+            print("📸 STEP 1: Fetching photos from Photos library")
+            print("=" * 55)
 
-        if not run_fetcher(current_folder_path, hours_icloud):
-            print("Error: Photo fetcher failed. Cannot proceed to next steps.")
-            exit(1)
+            if not run_fetcher(current_folder_path, hours_icloud):
+                print("Error: Photo fetcher failed. Cannot proceed to next steps.")
+                exit(1)
 
         subfolder_names = []
         root_images = []
