@@ -1,6 +1,7 @@
 app.bringToFront();
 
 var startupArguments = (typeof arguments !== 'undefined') ? arguments : [];
+var SUPPORTED_IMAGE_REGEX = /\.(arw|jpg|jpe|jpeg|dng|bmp|tif|tiff|psd|crw|cr2|exr|pcx|nef|dcr|dc2|erf|raf|orf|tga|mos|pef|png)$/i;
 
 function main(args) {
     var folderPath = args && args.length > 0 ? args[0] : null;
@@ -20,8 +21,9 @@ function runFocusStacking(folderPath) {
     for (var i = 0; i < folders.length; i++) {
         var currentFolder = folders[i];
         if (currentFolder instanceof Folder) {
-            processFolder(currentFolder, mainFolder);
-            processedFolders++;
+            if (processFolder(currentFolder, mainFolder)) {
+                processedFolders++;
+            }
         }
     }
 
@@ -57,12 +59,12 @@ function getSubfolders(rootFolder) {
 
 function processFolder(selectedFolder, outputFolder) {
     if (!selectedFolder) {
-        return;
+        return false;
     }
 
-    var imageFiles = selectedFolder.getFiles(/\.(jpg|jpe|jpeg|dng|bmp|tif|tiff|psd|crw|cr2|exr|pcx|nef|dcr|dc2|erf|raf|orf|tga|mos|pef|png)$/i);
+    var imageFiles = selectedFolder.getFiles(SUPPORTED_IMAGE_REGEX);
     if (!imageFiles || imageFiles.length < 2) {
-        return;
+        return false;
     }
 
     var stackFiles = [];
@@ -76,10 +78,11 @@ function processFolder(selectedFolder, outputFolder) {
         alignLayers();
         blendAlignedLayers();
 
-        var baseName = getBaseName(activeDocument.activeLayer.name);
+        var baseName = getBaseName(selectedFolder.name);
         var outputFile = new File(outputFolder + '/' + baseName + '_fs.jpg');
         saveAsJpeg(outputFile);
         app.activeDocument.close(SaveOptions.DONOTSAVECHANGES);
+        return true;
     } catch (e) {
         if (app.activeDocument) {
             app.activeDocument.close(SaveOptions.DONOTSAVECHANGES);
