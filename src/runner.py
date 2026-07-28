@@ -4,6 +4,7 @@ import subprocess
 import os
 import json
 import sys
+import shutil
 
 from .folder_manager import (
     determine_workflow_action,
@@ -140,11 +141,16 @@ def run_grouper(path_current):
         return "error"
 
 
-def run_photoshop_script(stacker, path_grouped, photoshop_app, output_format, output_folder):
+def run_photoshop_script(stacker, path_grouped, photoshop_app, output_format, output_folder, release_arw_crop):
     # Check if the script file exists
     if not os.path.exists(stacker):
         print(f"Error: Script file not found: {stacker}")
         return False
+
+    if release_arw_crop:
+        if not release_arw_crop_files(path_grouped):
+            print("Error: Failed while releasing ARW crop metadata.")
+            return False
 
     if output_folder:
         try:
@@ -193,6 +199,88 @@ def run_photoshop_script(stacker, path_grouped, photoshop_app, output_format, ou
         return False
 
 
+def release_arw_crop_files(path_grouped):
+    exiftool_cmd = shutil.which("exiftool")
+    if not exiftool_cmd:
+        print("Error: exiftool is not installed or not found in PATH.")
+        return False
+
+    print("🔧 release_arw_crop: scanning for ARW files...")
+    arw_files = []
+    for root, _, files in os.walk(path_grouped):
+        for filename in files:
+            if filename.lower().endswith(".arw"):
+                arw_files.append(os.path.join(root, filename))
+
+    if not arw_files:
+        print("🔧 release_arw_crop: no ARW files found, skipping metadata rewrite.")
+        return True
+
+    print(f"🔧 release_arw_crop: found {len(arw_files)} ARW file(s)")
+    for arw_file in arw_files:
+        print(f"🔧 release_arw_crop: processing {arw_file}")
+        width, height = get_arw_dimensions(arw_file)
+        if width is None or height is None:
+            print(f"Error: Could not determine sensor dimensions for {arw_file}")
+            return False
+
+        cmd = [
+            exiftool_cmd,
+            "-overwrite_original",
+            "-DefaultCropOrigin=0 0",
+            f"-DefaultCropSize={width} {height}",
+            "-SonyCropTopLeft=0 0",
+            f"-SonyCropSize={width} {height}",
+            arw_file,
+        ]
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        if result.returncode != 0:
+            print(f"Error running exiftool on {arw_file}: {result.stderr.strip()}")
+            return False
+
+    print("🔧 release_arw_crop: metadata rewrite complete.")
+    return True
+
+
+def get_arw_dimensions(arw_file):
+    exiftool_cmd = shutil.which("exiftool")
+    if not exiftool_cmd:
+        return None, None
+
+    result = subprocess.run(
+        [
+            exiftool_cmd,
+            "-s",
+            "-s",
+            "-SubIFD:ImageWidth",
+            "-SubIFD:ImageHeight",
+            arw_file,
+        ],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        return None, None
+
+    width = None
+    height = None
+    for line in result.stdout.splitlines():
+        parts = line.rsplit(":", 1)
+        if len(parts) != 2:
+            continue
+        tag = parts[0].strip()
+        value = parts[1].strip()
+        if tag in {"SubIFD:ImageWidth", "ImageWidth"}:
+            width = value
+        elif tag in {"SubIFD:ImageHeight", "ImageHeight"}:
+            height = value
+
+    try:
+        return int(width), int(height)
+    except (TypeError, ValueError):
+        return None, None
+
+
 def main():
     """Main workflow execution function"""
     # Load settings from file
@@ -214,6 +302,7 @@ def main():
     skip_icloud_fetcher = settings.get("skip_icloud_fetcher", False)
     output_format = settings.get("output_format", "jpg")
     output_folder = settings.get("output_folder", "")
+    release_arw_crop = settings.get("release_arw_crop", False)
     if isinstance(skip_icloud_fetcher, str):
         skip_icloud_fetcher = skip_icloud_fetcher.lower() in {"1", "true", "yes", "on"}
     if isinstance(output_format, str):
@@ -224,6 +313,10 @@ def main():
         output_folder = os.path.abspath(os.path.expanduser(output_folder))
     else:
         output_folder = ""
+    if isinstance(release_arw_crop, str):
+        release_arw_crop = release_arw_crop.lower() in {"1", "true", "yes", "on"}
+    else:
+        release_arw_crop = bool(release_arw_crop)
 
     # Validate required settings
     if not all(
@@ -268,6 +361,7 @@ def main():
     print(f"  Photoshop: {photoshop_app}")
     print(f"  Output format: {output_format}")
     print(f"  Output folder: {output_folder}")
+    print(f"  Release ARW crop: {'enabled' if release_arw_crop else 'disabled'}")
     print(f"  Hours to fetch: {hours_icloud}")
     print(f"  Subfolder mode: {'enabled' if process_subfolders_with_photoshop else 'disabled'}")
     print(f"  Skip iCloud fetcher: {'enabled' if skip_icloud_fetcher else 'disabled'}")
@@ -499,7 +593,7 @@ def main():
     print("🎨 STEP 3: Running Photoshop script for focus stacking")
     print("=" * 55)
 
-    if not run_photoshop_script(stacker, path_grouped, photoshop_app, output_format, output_folder):
+    if not run_photoshop_script(stacker, path_grouped, photoshop_app, output_format, output_folder, release_arw_crop):
         print("Error: Photoshop script failed.")
         exit(1)
 

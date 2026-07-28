@@ -89,11 +89,16 @@ function processFolder(selectedFolder, outputFolder, outputFormat) {
         if (!outputFolderRef.exists) {
             outputFolderRef.create();
         }
-        outputFolder = outputFolderRef.fsName;
+        if (!outputFolderRef.exists) {
+            $.writeln("ERROR: could not create output folder: " + outputFolderRef.fsName);
+            return false;
+        }
+        outputFolder = outputFolderRef;
     } else {
-        outputFolder = selectedFolder.parent.fsName;
+        outputFolder = selectedFolder.parent;
     }
 
+    $.writeln("Resolved output folder: " + outputFolder.fsName);
     closeAllOpenDocuments();
 
     var imageFiles = selectedFolder.getFiles(SUPPORTED_IMAGE_REGEX);
@@ -114,7 +119,7 @@ function processFolder(selectedFolder, outputFolder, outputFormat) {
 
         var baseName = getBaseName(selectedFolder.name);
         var extension = outputFormat && outputFormat.toLowerCase() === 'tiff16' ? 'tif' : 'jpg';
-        var outputFile = new File(outputFolder + '/' + baseName + '_fs.' + extension);
+        var outputFile = new File(outputFolder.fsName + '/' + baseName + '_fs.' + extension);
 
         if (extension === 'tif') {
             saveAsTiff16(outputFile);
@@ -196,13 +201,6 @@ function saveAsJpeg(fileRef) {
 }
 
 function saveAsTiff16(fileRef) {
-    var originalDocument = activeDocument;
-    var saveDoc = originalDocument.duplicate();
-    saveDoc.activate();
-    saveDoc.changeMode(ChangeMode.RGB);
-    saveDoc.bitsPerChannel = BitsPerChannelType.SIXTEEN;
-    saveDoc.flatten();
-
     var tiffOptions = new TiffSaveOptions();
     tiffOptions.imageCompression = TIFFEncoding.NONE;
     tiffOptions.layers = false;
@@ -212,8 +210,7 @@ function saveAsTiff16(fileRef) {
     tiffOptions.saveImagePyramid = false;
 
     $.writeln("Saving TIFF 16-bit to " + fileRef.fsName);
-    saveDoc.saveAs(fileRef, tiffOptions, true, Extension.TIFF);
-    saveDoc.close(SaveOptions.DONOTSAVECHANGES);
+    activeDocument.saveAs(fileRef, tiffOptions, false, Extension.TIFF);
     $.writeln("Saved TIFF: " + fileRef.fsName);
 }
 

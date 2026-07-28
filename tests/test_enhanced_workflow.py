@@ -341,6 +341,7 @@ def test_settings_format():
             "path_all_storing",
             "folder_current_storing",
             "photoshop_app",
+            "release_arw_crop",
         ]
 
         print("Checking required fields:")
@@ -360,10 +361,60 @@ def test_settings_format():
                 all_present = False
 
         assert all_present, "Settings format validation failed"
-        print("✅ Settings format validation passed!")
+        print("✅ Settings format is valid")
 
     except Exception as e:
-        raise AssertionError(f"Settings format validation test failed: {e}") from e
+        raise AssertionError(f"Settings format test failed: {e}") from e
+
+
+def test_release_arw_crop_setting_invokes_exiftool():
+    """Test that release_arw_crop setting triggers exiftool metadata rewrite."""
+    print("\n" + "=" * 60)
+    print("TEST 4: release_arw_crop setting")
+    print("=" * 60)
+
+    temp_dir = tempfile.mkdtemp(prefix="release_arw_crop_test_")
+    try:
+        current_folder = os.path.join(temp_dir, "!newstack")
+        os.makedirs(current_folder, exist_ok=True)
+        subfolder = os.path.join(current_folder, "120MSDCF")
+        os.makedirs(subfolder, exist_ok=True)
+        arw_file = os.path.join(subfolder, "DSC00001.ARW")
+        with open(arw_file, "wb") as f:
+            f.write(b"fake")
+
+        from src.runner import release_arw_crop_files
+
+        with patch("src.runner.shutil.which", return_value="/usr/bin/exiftool"), patch(
+            "src.runner.subprocess.run"
+        ) as mock_run:
+            mock_run.side_effect = [
+                subprocess.CompletedProcess(
+                    args=[],
+                    returncode=0,
+                    stdout="SubIFD:ImageWidth: 6000\nSubIFD:ImageHeight: 4000\n",
+                    stderr="",
+                ),
+                subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr=""),
+            ]
+            result = release_arw_crop_files(current_folder)
+
+        assert result is True, "release_arw_crop_files should return True when exiftool succeeds"
+        assert mock_run.call_count == 2, "Expected exiftool to be invoked for dimensions and metadata rewrite"
+
+        first_call = mock_run.call_args_list[0][0][0]
+        assert "/usr/bin/exiftool" in first_call, "First call should query exiftool for dimensions"
+
+        second_call = mock_run.call_args_list[1][0][0]
+        assert "/usr/bin/exiftool" in second_call, "Second call should invoke exiftool rewrite"
+        assert "-overwrite_original" in second_call, "Expected metadata rewrite to use overwrite_original"
+        assert "-DefaultCropOrigin=0 0" in second_call
+        assert "-SonyCropTopLeft=0 0" in second_call
+
+        print("✅ release_arw_crop setting successfully triggered exiftool metadata rewrite")
+
+    finally:
+        shutil.rmtree(temp_dir, ignore_errors=True)
 
 
 def test_runner_integration():

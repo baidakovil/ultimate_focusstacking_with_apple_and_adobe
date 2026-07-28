@@ -9,5 +9,6 @@
     "output_format": "tiff16",
     "output_folder": "/Users/il/Pictures/Iulia/JPG/stacked",
     "process_subfolders_with_photoshop": true,
-    "skip_icloud_fetcher": true
+    "skip_icloud_fetcher": true,
+    "release_arw_crop": true
 }

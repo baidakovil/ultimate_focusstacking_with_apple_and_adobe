@@ -5,5 +5,6 @@
     "path_all_storing": "test_output",
     "folder_current_storing": "!newstack",
     "photoshop_app": "Adobe Photoshop 2025",
-    "skip_icloud_fetcher": true
+    "skip_icloud_fetcher": true,
+    "release_arw_crop": false
 }
